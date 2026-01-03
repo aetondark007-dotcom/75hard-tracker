@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>75hard Smart</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #000000;
+            --bg-secondary: #111111;
+            --accent: #2563eb;
+            --text-primary: #ffffff;
+            --text-secondary: #a1a1aa;
+            --danger: #ef4444;
+            --success: #10b981;
+        }
+
+        body {
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-font-smoothing: antialiased;
+            overscroll-behavior-y: none;
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+
+        /* Smooth Interactions */
+        .tap-feedback {
+            transition: transform 0.1s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s;
+        }
+        .tap-feedback:active {
+            transform: scale(0.96);
+            opacity: 0.8;
+        }
+
+        /* Smart Checkbox */
+        .smart-checkbox {
+            width: 28px;
+            height: 28px;
+            border-radius: 8px;
+            border: 2px solid #333;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        .active .smart-checkbox {
+            background-color: var(--accent);
+            border-color: var(--accent);
+            box-shadow: 0 0 15px rgba(37, 99, 235, 0.4);
+        }
+        .smart-checkbox i {
+            transform: scale(0);
+            transition: transform 0.2s;
+        }
+        .active .smart-checkbox i {
+            transform: scale(1);
+        }
+
+        /* Camera/File Inputs Hidden */
+        input[type="file"] {
+            display: none;
+        }
+
+        /* Modal Backdrop */
+        .backdrop {
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- Header -->
+    <header class="px-6 pt-12 pb-4 flex justify-between items-end bg-gradient-to-b from-black to-transparent sticky top-0 z-20">
+        <div>
+            <h1 class="text-3xl font-black italic tracking-tighter text-blue-600 uppercase leading-none">75hard</h1>
+            <div class="flex items-center space-x-2 mt-1">
+                <span class="text-[10px] font-bold text-zinc-500 uppercase tracking-widest bg-zinc-900 px-2 py-0.5 rounded">Smart Tracker</span>
+                <span id="notifyBadge" class="hidden text-[10px] font-bold text-emerald-500 uppercase tracking-widest"><i class="fa-solid fa-bell"></i> Active</span>
+            </div>
+        </div>
+        <div class="text-right tap-feedback" onclick="openDayEdit()">
+            <div class="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">Current Day</div>
+            <div id="dayDisplay" class="text-4xl font-black leading-none text-white">1</div>
+        </div>
+    </header>
+
+    <!-- Main Interface -->
+    <main class="flex-1 px-5 space-y-6 overflow-y-auto pb-32">
+        
+        <!-- Smart Status Card -->
+        <div class="bg-[#111] rounded-3xl p-6 border border-[#222] relative overflow-hidden">
+            <div class="relative z-10 flex justify-between items-center">
+                <div>
+                    <h2 class="text-sm font-bold text-zinc-400 uppercase tracking-wide">Daily Completion</h2>
+                    <div class="text-3xl font-black mt-1 italic" id="percentageText">0%</div>
+                </div>
+                <!-- Progress Ring -->
+                <div class="relative w-16 h-16">
+                    <svg class="w-full h-full transform -rotate-90">
+                        <circle cx="32" cy="32" r="28" stroke="#222" stroke-width="6" fill="transparent"/>
+                        <circle id="progressRing" cx="32" cy="32" r="28" stroke="#2563eb" stroke-width="6" fill="transparent" stroke-dasharray="175.9" stroke-dashoffset="175.9" class="transition-all duration-700 ease-out"/>
+                    </svg>
+                </div>
+            </div>
+            
+            <!-- Settings Trigger -->
+            <button onclick="openSettings()" class="mt-4 w-full py-3 bg-[#1a1a1a] rounded-xl text-xs font-bold text-zinc-400 flex items-center justify-center space-x-2 border border-[#333] tap-feedback">
+                <i class="fa-solid fa-gear"></i>
+                <span>SETTINGS & BACKUP</span>
+            </button>
+        </div>
+
+        <!-- Task List -->
+        <div id="taskList" class="space-y-3">
+            <!-- Tasks injected via JS -->
+        </div>
+
+        <!-- Failure Button -->
+        <div class="pt-4 pb-8 flex justify-center">
+            <button onclick="confirmFail()" class="text-[10px] font-bold text-zinc-600 uppercase tracking-[0.2em] hover:text-red-500 transition-colors py-4">
+                I Failed. Reset Protocol.
+            </button>
+        </div>
+
+    </main>
+
+    <!-- Floating Action Bar -->
+    <div class="fixed bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-black via-black/95 to-transparent z-30">
+        <button id="finishBtn" onclick="finishDay()" class="w-full h-16 bg-[#1a1a1a] text-zinc-500 font-black text-lg italic uppercase rounded-2xl flex items-center justify-center space-x-2 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-2xl border border-[#333]">
+            <span>Complete Day</span>
+        </button>
+    </div>
+
+    <!-- Hidden Inputs -->
+    <input type="file" id="cameraInput" accept="image/*" capture="environment">
+    <input type="file" id="importInput" accept=".json" onchange="importData(this)">
+
+    <!-- SETTINGS MODAL -->
+    <div id="settingsModal" class="fixed inset-0 backdrop hidden z-50 flex items-end sm:items-center justify-center">
+        <div class="bg-[#111] w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 border-t sm:border border-[#333] max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-black italic uppercase text-blue-500">Settings</h3>
+                <button onclick="closeSettings()" class="w-8 h-8 rounded-full bg-[#222] flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <!-- Permissions -->
+            <div id="permSection" class="mb-8">
+                <h4 class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Notifications</h4>
+                <button onclick="requestPermission()" id="permBtn" class="w-full py-3 bg-blue-600/20 text-blue-500 border border-blue-600/50 rounded-xl font-bold text-sm uppercase flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-bell"></i>
+                    <span>Enable Smart Alerts</span>
+                </button>
+                <div id="permActive" class="hidden w-full py-3 bg-emerald-500/10 text-emerald-500 border border-emerald-500/30 rounded-xl font-bold text-sm uppercase flex items-center justify-center space-x-2">
+                    <i class="fa-solid fa-check"></i>
+                    <span>Alerts Active</span>
+                </div>
+            </div>
+
+            <!-- Deadlines -->
+            <div class="mb-8">
+                <h4 class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Deadline Configuration</h4>
+                <div class="space-y-3" id="timeSettings">
+                    <!-- Time inputs generated here -->
+                </div>
+            </div>
+
+            <!-- Data Management -->
+            <div class="mb-4 pt-6 border-t border-[#222]">
+                <h4 class="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-3">Data Backup (Automatic)</h4>
+                <p class="text-[10px] text-zinc-400 mb-3">Your progress automatically saves when you finish a day. Manual controls below.</p>
+                <div class="flex space-x-3">
+                    <button onclick="exportData()" class="flex-1 py-3 bg-[#1a1a1a] text-zinc-300 border border-[#333] rounded-xl font-bold text-xs uppercase flex items-center justify-center space-x-2 active:bg-[#222]">
+                        <i class="fa-solid fa-file-export"></i>
+                        <span>Backup Now</span>
+                    </button>
+                    <button onclick="document.getElementById('importInput').click()" class="flex-1 py-3 bg-[#1a1a1a] text-zinc-300 border border-[#333] rounded-xl font-bold text-xs uppercase flex items-center justify-center space-x-2 active:bg-[#222]">
+                        <i class="fa-solid fa-file-import"></i>
+                        <span>Restore</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="mt-4">
+                <button onclick="closeSettings()" class="w-full py-4 bg-blue-600 text-white rounded-xl font-black uppercase italic shadow-lg shadow-blue-900/20">
+                    Done
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- EDIT DAY MODAL -->
+    <div id="dayModal" class="fixed inset-0 backdrop hidden z-50 flex items-center justify-center p-6">
+        <div class="bg-[#111] w-full max-w-xs rounded-3xl p-6 border border-[#333] text-center">
+            <h3 class="text-xl font-black italic uppercase mb-2">Manual Override</h3>
+            <p class="text-xs text-zinc-500 mb-4">Fix your current day count.</p>
+            <input type="number" id="dayInput" class="w-full bg-[#000] border border-[#333] text-white text-center font-black text-3xl py-4 rounded-xl mb-4 focus:border-blue-500 outline-none" placeholder="1">
+            <div class="flex space-x-3">
+                <button onclick="closeDayEdit()" class="flex-1 py-3 bg-[#222] rounded-xl font-bold text-xs text-zinc-400">CANCEL</button>
+                <button onclick="saveDayEdit()" class="flex-1 py-3 bg-blue-600 rounded-xl font-bold text-xs text-white">UPDATE</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const TASKS = [
+            { id: 'diet', label: 'Strict Diet (No Cheats)', icon: 'fa-utensils', defaultTime: '20:00' },
+            { id: 'workout1', label: 'Workout 1 (45m)', icon: 'fa-dumbbell', defaultTime: '10:00' },
+            { id: 'workout2', label: 'Workout 2 (Outdoor)', icon: 'fa-person-running', defaultTime: '18:00' },
+            { id: 'water', label: 'Gallon of Water', icon: 'fa-glass-water', defaultTime: '21:00' },
+            { id: 'read', label: '10 Pages Reading', icon: 'fa-book', defaultTime: '21:30' },
+            { id: 'photo', label: 'Progress Photo', icon: 'fa-camera', type: 'photo', defaultTime: '22:00' }
+        ];
+
+        // --- STATE MANAGEMENT ---
+        let state = {
+            day: 1,
+            checks: {},
+            deadlines: {}, // { taskId: "18:00" }
+            alertsEnabled: false,
+            history: []
+        };
+
+        // Initialize
+        function init() {
+            const saved = localStorage.getItem('75hard_smart_v1');
+            if (saved) {
+                state = JSON.parse(saved);
+            } else {
+                // Set default deadlines
+                TASKS.forEach(t => state.deadlines[t.id] = t.defaultTime);
+            }
+            
+            renderTasks();
+            renderSettings();
+            updateUI();
+            checkNotificationPermission();
+            
+            // Start the "Smart Loop" - checks every minute
+            setInterval(runSmartCheck, 60000);
+        }
+
+        // --- RENDERERS ---
+        function renderTasks() {
+            const container = document.getElementById('taskList');
+            container.innerHTML = '';
+            
+            TASKS.forEach(task => {
+                const isChecked = state.checks[task.id];
+                const deadline = state.deadlines[task.id];
+                
+                const div = document.createElement('div');
+                div.className = `bg-[#111] p-4 rounded-2xl border border-[#222] flex items-center justify-between tap-feedback ${isChecked ? 'active border-blue-900/30' : ''}`;
+                
+                // Photo tasks trigger camera, others trigger toggle
+                const clickHandler = task.type === 'photo' ? `triggerCamera('${task.id}')` : `toggle('${task.id}')`;
+
+                div.innerHTML = `
+                    <div class="flex items-center space-x-4 flex-1" onclick="${clickHandler}">
+                        <div class="w-10 h-10 rounded-xl bg-[#1a1a1a] flex items-center justify-center text-zinc-500 transition-colors ${isChecked ? 'text-blue-500 bg-blue-500/10' : ''}">
+                            <i class="fa-solid ${task.icon}"></i>
+                        </div>
+                        <div>
+                            <div class="font-bold text-sm ${isChecked ? 'text-blue-500' : 'text-zinc-200'}">${task.label}</div>
+                            <div class="text-[10px] font-bold text-zinc-600 mt-0.5 uppercase tracking-wide">
+                                <i class="fa-solid fa-bell text-[9px] mr-1"></i> ${formatTime12(deadline)} Alert
+                            </div>
+                        </div>
+                    </div>
+                    <div class="smart-checkbox ml-4" onclick="${clickHandler}">
+                        <i class="fa-solid fa-check text-white text-sm"></i>
+                    </div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function renderSettings() {
+            const container = document.getElementById('timeSettings');
+            container.innerHTML = '';
+            TASKS.forEach(task => {
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between bg-[#000] p-3 rounded-xl border border-[#222]";
+                div.innerHTML = `
+                    <span class="text-sm font-bold text-zinc-400 flex items-center">
+                        <i class="fa-solid ${task.icon} w-6 text-center mr-2"></i> ${task.label}
+                    </span>
+                    <input type="time" value="${state.deadlines[task.id] || task.defaultTime}" 
+                        onchange="updateDeadline('${task.id}', this.value)"
+                        class="bg-[#1a1a1a] text-white text-xs font-bold py-2 px-3 rounded-lg border border-[#333] outline-none focus:border-blue-500">
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        // --- DATA BACKUP SYSTEM ---
+        function exportData() {
+            // FIXED NAME for easy overwriting
+            const filename = "75hard_backup.json";
+            
+            const dataStr = JSON.stringify(state, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function importData(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedState = JSON.parse(e.target.result);
+                    // Basic validation
+                    if (importedState.day && importedState.checks) {
+                        if(confirm(`Restore data from Day ${importedState.day}? This will overwrite current progress.`)) {
+                            state = importedState;
+                            save();
+                            init();
+                            closeSettings();
+                            alert("Data restored successfully.");
+                        }
+                    } else {
+                        alert("Invalid backup file.");
+                    }
+                } catch (err) {
+                    alert("Error reading file.");
+                }
+            };
+            reader.readAsText(file);
+            // Reset input so same file can be selected again if needed
+            input.value = ''; 
+        }
+
+        // --- ACTIONS ---
+        function toggle(id) {
+            state.checks[id] = !state.checks[id];
+            save();
+            renderTasks();
+            updateUI();
+            if(window.navigator.vibrate) window.navigator.vibrate(10);
+        }
+
+        function triggerCamera(id) {
+            if(state.checks[id]) {
+                toggle(id);
+                return;
+            }
+            const input = document.getElementById('cameraInput');
+            input.onchange = (e) => {
+                if(e.target.files && e.target.files[0]) {
+                    toggle(id); 
+                }
+            };
+            input.click();
+        }
+
+        function updateDeadline(id, time) {
+            state.deadlines[id] = time;
+            save();
+            renderTasks(); 
+        }
+
+        function finishDay() {
+            const allDone = TASKS.every(t => state.checks[t.id]);
+            if(!allDone) return;
+
+            // 1. Generate Calendar Victory Log
+            generateVictoryLink(state.day);
+
+            // 2. Update Internal State (Move to next day)
+            state.history.push({ day: state.day, date: new Date().toISOString() });
+            state.day++;
+            state.checks = {}; 
+            save(); // Save next day state to local storage
+            
+            renderTasks();
+            updateUI();
+            
+            // 3. Auto-Export Backup (Delayed slightly to allow Calendar DL to start)
+            setTimeout(() => {
+                exportData();
+            }, 1000);
+
+            // 4. User Feedback
+            setTimeout(() => {
+                alert(`DAY ${state.day - 1} COMPLETE.\n\nFiles Saved:\n1. Calendar Log (.ics)\n2. App Backup (.json)`);
+            }, 1500);
+        }
+
+        // --- SMART LOGIC ---
+        function runSmartCheck() {
+            if (!state.alertsEnabled) return;
+
+            const now = new Date();
+            const currentHours = String(now.getHours()).padStart(2, '0');
+            const currentMinutes = String(now.getMinutes()).padStart(2, '0');
+            const currentTime = `${currentHours}:${currentMinutes}`;
+
+            TASKS.forEach(task => {
+                const targetTime = state.deadlines[task.id];
+                const isDone = state.checks[task.id];
+
+                if (targetTime === currentTime && !isDone) {
+                    sendNotification(`75HARD ALERT: ${task.label}`, "Incomplete. Get it done.");
+                }
+            });
+        }
+
+        function sendNotification(title, body) {
+            if (Notification.permission === "granted") {
+                new Notification(title, {
+                    body: body,
+                    icon: "https://cdn-icons-png.flaticon.com/512/3579/3579089.png", 
+                    vibrate: [200, 100, 200]
+                });
+            }
+        }
+
+        // --- CALENDAR LOGIC ---
+        function generateVictoryLink(dayNum) {
+            const now = new Date();
+            const dateStr = now.toISOString().split('T')[0].replace(/-/g, '');
+            const ics = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'BEGIN:VEVENT',
+                `DTSTART;VALUE=DATE:${dateStr}`,
+                `SUMMARY:✅ 75HARD Day ${dayNum} COMPLETE`,
+                `DESCRIPTION:No shortcuts. No compromises. Day ${dayNum} in the books.`,
+                'END:VEVENT',
+                'END:VCALENDAR'
+            ].join('\r\n');
+
+            const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = `75Hard_Day${dayNum}_Victory.ics`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // --- UI UTILS ---
+        function updateUI() {
+            document.getElementById('dayDisplay').innerText = state.day;
+            document.getElementById('dayInput').value = state.day;
+
+            const doneCount = Object.values(state.checks).filter(v => v).length;
+            const total = TASKS.length;
+            const pct = Math.round((doneCount / total) * 100);
+            
+            document.getElementById('percentageText').innerText = pct + '%';
+            
+            const radius = 28;
+            const circumference = 2 * Math.PI * radius; 
+            const offset = circumference - ((pct / 100) * circumference);
+            document.getElementById('progressRing').style.strokeDashoffset = offset;
+
+            const btn = document.getElementById('finishBtn');
+            if(pct === 100) {
+                btn.disabled = false;
+                btn.classList.remove('bg-[#1a1a1a]', 'text-zinc-500');
+                btn.classList.add('bg-blue-600', 'text-white', 'shadow-blue-500/20');
+                btn.innerHTML = `<span>FINISH DAY ${state.day}</span> <i class="fa-solid fa-arrow-right"></i>`;
+            } else {
+                btn.disabled = true;
+                btn.classList.add('bg-[#1a1a1a]', 'text-zinc-500');
+                btn.classList.remove('bg-blue-600', 'text-white', 'shadow-blue-500/20');
+                btn.innerHTML = `<span>${doneCount}/${total} TASKS DONE</span>`;
+            }
+        }
+
+        function formatTime12(time24) {
+            if(!time24) return "--:--";
+            let [h, m] = time24.split(':');
+            h = parseInt(h);
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            h = h % 12;
+            h = h ? h : 12; 
+            return `${h}:${m} ${ampm}`;
+        }
+
+        function checkNotificationPermission() {
+            if ("Notification" in window) {
+                if (Notification.permission === "granted") {
+                    state.alertsEnabled = true;
+                    document.getElementById('notifyBadge').classList.remove('hidden');
+                    document.getElementById('permBtn').classList.add('hidden');
+                    document.getElementById('permActive').classList.remove('hidden');
+                }
+            }
+        }
+
+        function requestPermission() {
+            if (!("Notification" in window)) {
+                alert("This browser does not support system notifications.");
+                return;
+            }
+            Notification.requestPermission().then(permission => {
+                if (permission === "granted") {
+                    state.alertsEnabled = true;
+                    save();
+                    checkNotificationPermission();
+                    new Notification("75HARD Connected", { body: "Smart alerts are now active." });
+                }
+            });
+        }
+
+        function confirmFail() {
+            if(confirm("Are you sure? Failing a task means restarting at Day 1.")) {
+                state.day = 1;
+                state.checks = {};
+                state.history = [];
+                save();
+                init();
+            }
+        }
+
+        // --- MODALS ---
+        function openSettings() { document.getElementById('settingsModal').classList.remove('hidden'); }
+        function closeSettings() { document.getElementById('settingsModal').classList.add('hidden'); }
+        
+        function openDayEdit() { document.getElementById('dayModal').classList.remove('hidden'); }
+        function closeDayEdit() { document.getElementById('dayModal').classList.add('hidden'); }
+        function saveDayEdit() {
+            const val = parseInt(document.getElementById('dayInput').value);
+            if(val > 0 && val <= 75) {
+                state.day = val;
+                save();
+                updateUI();
+                closeDayEdit();
+            }
+        }
+
+        function save() {
+            localStorage.setItem('75hard_smart_v1', JSON.stringify(state));
+        }
+
+        window.onload = init;
+
+    </script>
+</body>
+</html>
